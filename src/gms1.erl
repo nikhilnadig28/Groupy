@@ -1,5 +1,5 @@
 -module (gms1).
--export ([leader/4, slave/5]).
+-export ([start/1, start/2]).
 
 start(Id) ->
     Self = self(),
