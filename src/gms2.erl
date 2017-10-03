@@ -1,6 +1,9 @@
 -module (gms2).
 -export ([start/1, start/2]).
 
+-define(timeout, 1000).
+-define(arghh, 100).
+
 start(Id) ->
     Rnd = random:uniform(1000),
     Self = self(),
@@ -24,6 +27,7 @@ init(Id, Grp, Rnd, Master) ->
     receive
         {view, [Leader|Slaves], Group} ->
             Master ! {view, Group},
+             erlang:monitor(process, Leader),
             slave(Id, Master, Leader, Slaves, Group)
 
     after ?timeout ->
@@ -59,7 +63,7 @@ slave(Id, Master, Leader, Slaves, Group) ->
             Master ! Msg,
             slave(Id, Master, Leader, Slaves, Group);
         {view, [Leader|Slaves2], Group2} -> %  a multicasted view from the leader. A view is delivered to the master process.
-            Master ! {view, Group2}
+            Master ! {view, Group2},
             slave(Id, Master, Leader, Slaves2, Group2);
         {'DOWN', _Ref, process, Leader, _Reason} ->
 	    	election(Id, Master, Slaves, Group);

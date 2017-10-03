@@ -49,9 +49,10 @@ slave(Id, Master, Leader, Slaves, Group) ->
             Master ! Msg,
             slave(Id, Master, Leader, Slaves, Group);
         {view, [Leader|Slaves2], Group2} -> %  a multicasted view from the leader. A view is delivered to the master process.
-            Master ! {view, Group2}
+            Master ! {view, Group2},
             slave(Id, Master, Leader, Slaves2, Group2);
         stop ->
 ok end.
 
-
+bcast(Id, Msg, Nodes) ->
+    lists:foreach(fun(Node) -> Node ! Msg end, Nodes).

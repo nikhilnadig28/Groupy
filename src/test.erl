@@ -23,6 +23,7 @@ add(N, Module, Wrk, Sleep) ->
 
 more(N, Module, Sleep) when N > 1 ->
     Wrk = first(1, Module, Sleep),
+    io:format("~w~n",[Wrk]),
     Ns = lists:seq(2,N),
     lists:map(fun(Id) -> add(Id, Module, Wrk, Sleep) end, Ns),
     Wrk.
@@ -41,7 +42,7 @@ go(Wrk) ->
 sleep(Wrk, Sleep) ->
     Wrk ! {send, {sleep, Sleep}}.
 
-go(Wrk) ->
+go2(Wrk) ->
     Wrk ! {send, stop}.
 
 

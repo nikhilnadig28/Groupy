@@ -1,6 +1,9 @@
 -module (gms3).
 -export ([start/1, start/2]).
 
+-define(timeout, 1000).
+-define(arghh, 100).
+
 start(Id) ->
     Rnd = random:uniform(1000),
     Self = self(),
@@ -8,7 +11,7 @@ start(Id) ->
 
 init(Id, Rnd, Master) ->
     random:seed(Rnd, Rnd, Rnd),
-    leader(Id, Master, [], [Master]).
+    leader(Id, Master, 1, [], [Master]).
 
 start(Id, Grp) ->
     Rnd = random:uniform(1000),
@@ -22,9 +25,10 @@ init(Id, Grp, Rnd, Master) ->
     Grp ! {join, Master, Self},
     
     receive
-        {view, [Leader|Slaves], Group} ->
+        {view, N, [Leader|Slaves], Group} ->
             Master ! {view, Group},
-            slave(Id, Master, Leader, Slaves, Group)
+            erlang:monitor(process, Leader),
+            slave(Id, Master, Leader, N + 1, {view, N, [Leader|Slaves], Group}, Slaves, Group)
 
     after ?timeout ->
 	    Master ! {error, "no reply from leader"}
@@ -60,10 +64,12 @@ slave(Id, Master, Leader, N, Last, Slaves, Group) ->
             Master ! Msg,
             slave(Id, Master, Leader, N + 1, {msg, N, Msg}, Slaves, Group);
         {view, N, [Leader|Slaves2], Group2} -> %  a multicasted view from the leader. A view is delivered to the master process.
-            Master ! {view, Group2}
+            Master ! {view, Group2},
             slave(Id, Master, Leader, N + 1, {view, N, [Leader|Slaves2], Group2}, Slaves2, Group2);
         {'DOWN', _Ref, process, Leader, _Reason} ->
-	    	election(Id, Master, Slaves, Group);
+	    	election(Id, Master, N, Last, Slaves, Group);
+	    {msg, I, _} when I < N ->
+    		slave(Id, Master, Leader, N, Last, Slaves, Group);
         stop ->
 			ok 
 	end.
