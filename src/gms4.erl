@@ -63,10 +63,10 @@ leader(Id, Master, N, Slaves, Group, MsgList) ->
  
 slave(Id, Master, Leader, N, Last, Slaves, Group) ->  
     receive
-        {mcast, Msg} ->
+        {mcast, Msg} -> %a request from its master to multicast a message, the message is forwarded to the leader.
             Leader ! {mcast, Msg},
             slave(Id, Master, Leader, N, Last, Slaves, Group);
-        {join, Wrk, Peer} ->
+        {join, Wrk, Peer} -> %  a request from the master to allow a new node to join the group, the message is forwarded to the leader.
             Leader ! {join, Wrk, Peer},
             slave(Id, Master, Leader, N, Last, Slaves, Group);      
         {msg, I, _} when I < N ->             
@@ -80,7 +80,7 @@ slave(Id, Master, Leader, N, Last, Slaves, Group) ->
         {msg, I, Msg} ->
             Master ! Msg,
             slave(Id, Master, Leader, I + 1, {msg,I,Msg}, Slaves, Group);         
-        {view, I, [Leader|Slaves2], NextGroup} ->
+        {view, I, [Leader|Slaves2], NextGroup} -> %  a multicasted view from the leader. A view is delivered to the master process.
             Master ! {view, NextGroup},
             slave(Id, Master, Leader, I + 1, {view, I, [Leader|Slaves2], NextGroup}, Slaves2, NextGroup);
         {'DOWN', _Ref, process, Leader, _Reason} ->          
