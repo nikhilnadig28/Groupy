@@ -1,5 +1,5 @@
--module(gms4).
--export([start/1, start/2, init/3, init/4]).
+-module (gms4).
+-export ([start/1, start/2]).
 
 -define(timeout, 1000).
 -define(arghh, 100).
@@ -11,14 +11,14 @@ start(Id) ->
  
 init(Id, Rnd, Master) ->
     random:seed(Rnd, Rnd, Rnd),
-    leader(Id, Master,1, [], [Master],[]).
+    leader(Id, Master, 1, [], [Master],[]).
  
 start(Id, Grp) ->
     Rnd = random:uniform(1000),
     Self = self(),
-    {ok, spawn_link(fun()-> init(Id, Rnd, Grp, Self) end)}.
+    {ok, spawn_link(fun()-> init(Id, Grp, Rnd, Self) end)}.
  
-init(Id, Rnd, Grp, Master) ->
+init(Id, Grp, Rnd, Master) ->
     random:seed(Rnd, Rnd, Rnd),
  
     Self = self(),
@@ -30,34 +30,31 @@ init(Id, Rnd, Grp, Master) ->
             erlang:monitor(process, Leader),
             slave(Id, Master, Leader, N + 1, {view, N, [Leader|Slaves], Group}, Slaves, Group)
  
-    after timeout ->
+    after ?timeout ->
         Master ! {error, "no reply from leader"}
     end.
  
- 
-leader(Id, Master,N, Slaves, Group, MsgList) ->
+leader(Id, Master, N, Slaves, Group, MsgList) ->
     receive
-        {mcast, Msg} ->          
+        {mcast, Msg} -> %a message either from its own master or from a peer node. A message {msg, Msg} is multicasted to all peers and a message Msg is sent to the application layer.      
             bcast(Id, {msg, N, Msg}, Slaves),
             Master ! Msg,
             NewMsgList = [{N,Msg}|MsgList], %%store all multicasted messages
             leader(Id, Master, N+1, Slaves, Group, NewMsgList);
-        {join, Wrk, Peer} ->
- 
-            NextSlave = lists:append(Slaves, [Peer]),
-            NextGroup = lists:append(Group, [Wrk]),
-            bcast(Id, {view, N, [self()|NextSlave], NextGroup}, NextSlave),
-            Master ! {view, NextGroup},
-            leader(Id, Master, N + 1, NextSlave, NextGroup, MsgList);
+        {join, Wrk, Peer} -> %a message, from a peer or the master, that is a request from a node to join the group. The message contains both the process identifier of the application layer, Wrk, and the process identifier of its group process.
+            Slave2 = lists:append(Slaves, [Peer]),
+            Group2 = lists:append(Group, [Wrk]),
+            bcast(Id, {view, N, [self()|Slave2], Group2}, Slave2),
+            Master ! {view, Group2},
+            leader(Id, Master, N + 1, Slave2, Group2, MsgList);
         {resendMessage, I, P} ->         
             case lists:keyfind(I, 1, MsgList) of 
-                {S,Message} ->
+                {S, Message} ->
                     io:format("Leader resending messages~n"),
-                    P ! {resend, S,Message},
+                    P ! {resend, S, Message},
                     leader(Id, Master, N, Slaves, Group, MsgList);
                 false ->
-                    io:format("Message not found in leader's List~n"),
-                    leader(Id, Master, N, Slaves, Group, MsgList)
+                     leader(Id, Master, N, Slaves, Group, MsgList)
                 end;
         stop ->
             ok
@@ -76,7 +73,7 @@ slave(Id, Master, Leader, N, Last, Slaves, Group) ->
             slave(Id, Master, Leader, N, Last, Slaves, Group);
         {msg, I, Msg} when I > N ->           
             MessageSequence = lists:seq(N, I),            
-            io:format("Msg with ID ~w lost by slave: ~w~n",[MessageSequence,Id]),
+            io:format("Message with Id ~w lost by slave ~w~n",[MessageSequence,Id]),
             lists:map(fun(Missing) -> Leader ! {resendMessage, Missing, self()}  end, MessageSequence),
             Master ! Msg,
             slave(Id, Master, Leader, I + 1, {msg,I,Msg}, Slaves, Group);
@@ -88,25 +85,14 @@ slave(Id, Master, Leader, N, Last, Slaves, Group) ->
             slave(Id, Master, Leader, I + 1, {view, I, [Leader|Slaves2], NextGroup}, Slaves2, NextGroup);
         {'DOWN', _Ref, process, Leader, _Reason} ->          
             election(Id, Master, N, Last, Slaves, Group);
-        {resend, S,_} ->         
-            io:format("Lost message with seq numbers ~w received again by slave: ~w~n",[S,Id]),
+        {resend, M, _} ->         
+            io:format("Lost message with Id ~w received by slave ~w~n",[M, Id]),
             slave(Id, Master, Leader, N, Last, Slaves, Group);
         stop ->
             ok
 end.
  
-bcast(Id, Msg, Nodes) ->
-    lists:foreach(fun(Node) ->    
-    dropMessage(Node, Msg) end, Nodes).
 
-crash(Id) ->
-    case random:uniform(?arghh) of
-        ?arghh ->
-            io:format("leader ~w: crash~n", [Id]),
-            exit(no_luck);
-        _ ->
-            ok
-    end.
  
 dropMessage(Node, Msg) ->
     case random:uniform(?arghh) of
@@ -116,8 +102,7 @@ dropMessage(Node, Msg) ->
         _ ->
             Node ! Msg
     end.
- 
- 
+
 election(Id, Master,N, Last, Slaves, [_|Group]) ->
     Self = self(),
     case Slaves of
@@ -130,3 +115,7 @@ election(Id, Master,N, Last, Slaves, [_|Group]) ->
             erlang:monitor(process, Leader),
             slave(Id, Master, Leader, N, Last, Rest, Group)
     end.
+ 
+ bcast(Id, Msg, Nodes) ->
+    lists:foreach(fun(Node) ->    
+    dropMessage(Node, Msg) end, Nodes).

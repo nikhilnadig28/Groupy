@@ -19,7 +19,7 @@ init(Id, Grp, Master) ->
         {view, [Leader|Slaves], Group} ->
             Master ! {view, Group},
             slave(Id, Master, Leader, Slaves, Group)
-end.    
+    end.    
 
 leader(Id, Master, Slaves, Group) ->
     receive

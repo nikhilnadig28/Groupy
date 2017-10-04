@@ -32,7 +32,7 @@ init(Id, Grp, Rnd, Master) ->
 
     after ?timeout ->
 	    Master ! {error, "no reply from leader"}
-end.    
+	end.    
 
 leader(Id, Master, Slaves, Group) ->
     receive
