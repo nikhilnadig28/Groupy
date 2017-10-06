@@ -44,7 +44,7 @@ leader(Id, Master, N, Slaves, Group, MsgList) ->
         {join, Wrk, Peer} -> %a message, from a peer or the master, that is a request from a node to join the group. The message contains both the process identifier of the application layer, Wrk, and the process identifier of its group process.
             Slave2 = lists:append(Slaves, [Peer]),
             Group2 = lists:append(Group, [Wrk]),
-            bcast(Id, {view, N, [self()|Slave2], Group2}, Slave2),
+            bcast(Id, {view, N + 1, [self()|Slave2], Group2}, Slave2),
             Master ! {view, Group2},
             leader(Id, Master, N + 1, Slave2, Group2, MsgList);
         {resendMessage, I, P} ->         
